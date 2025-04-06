@@ -1,0 +1,233 @@
+---
+title: "Argentina 1 x 0 Colômbia"
+subtitle: "Análise de passes incompletos e chutes da partida"
+author: "João Inácio Scrimini"
+abstract: "Análise detalhada dos dados da final da Copa América 2024 entre Argentina e Colômbia, com foco em passes imprecisos e finalizações. A avaliação analisa como as equipes lidaram com a ineficiência nos passes e a eficácia nas finalizações, destacando o impacto desses fatores no resultado da partida decisiva."
+header-includes:
+   - \usepackage[brazil]{babel}
+   - \usepackage{bm}
+   - \usepackage{float}
+geometry: left=2.5cm, right=2.5cm, top=3cm, bottom=3cm
+output:
+  bookdown::pdf_document2:
+editor_options:
+  chunk_output_type: console
+indent: true
+---
+
+```{r setup, include=FALSE}
+options(digits = 3)  
+options(scipen = 999)
+ggplot2::theme_set(ggplot2::theme_minimal())
+knitr::opts_chunk$set(echo=F, message=F, warning=F, fig.pos = 'H',
+                      fig.align = 'center', fig.width = 7, fig.height= 2.5)
+
+# Carregando as bibliotecas
+library(StatsBombR)
+library(dplyr)
+library(ggplot2)
+# library(tidyr)
+# library(ggrepel)
+# library(gganimate)
+library(grid)
+
+source("campo.R")
+
+```
+\newpage
+# Introdução 
+
+
+\quad \ Nesta análise, realizaremos uma investigação aprofundada dos dados da final da Copa América 2024 entre Argentina e Colômbia, disponibilizados pela StatsBomb. Vamos explorar os jogadores relacionados pelas equipes, além de eventos cruciais, como passes e chutes a gol. Utilizaremos métodos estatísticos para revelar padrões e insights significativos sobre o desempenho de ambas as seleções durante a partida.
+
+```{r, include=FALSE}
+# FreeCompetitions() |> view()
+# FreeCompetitions() %>% 
+#   filter(competition_id==223, season_name == 2024) %>% 
+#   FreeMatches() |> view()
+
+# Selecionando a Final da copa américa
+matches <- FreeCompetitions() %>% 
+  filter(competition_id==223, season_name == 2024) %>% 
+  FreeMatches() %>% filter(match_id == 3943077) 
+events <- matches %>% get.matchFree()
+lineups <- matches %>% get.lineupsFree()
+
+# bandeira dos times:
+argentina_flag <- png::readPNG("argentina.png")
+colombia_flag <- png::readPNG("colombia.png")
+argentina_grob <- grid::rasterGrob(argentina_flag, interpolate = TRUE)
+colombia_grob <- grid::rasterGrob(colombia_flag, interpolate = TRUE)
+
+
+# Estruturando a relação dos jogadores para a partida:
+time<-1 # 1 = argentina # 2 = colombia
+Argentina<- data.frame(`Número`=lineups[[3]][[time]]$jersey_number, 
+                       Jogador = ifelse(is.na(lineups[[3]][[time]]$player_nickname), 
+                                          lineups[[3]][[time]]$player_name, lineups[[3]][[time]]$player_nickname)
+)
+Argentina<-Argentina[order(Argentina$Número), ]
+time<-2 # 1 = argentina # 2 = colombia
+Colombia<- data.frame(Jogador = ifelse(is.na(lineups[[3]][[time]]$player_nickname), 
+                                         lineups[[3]][[time]]$player_name, lineups[[3]][[time]]$player_nickname),
+                      `Número`=lineups[[3]][[time]]$jersey_number)
+Colombia<-Colombia[order(Colombia$Número), ]
+Escalacao<- cbind(Argentina,"X" = "" ,rbind(Colombia,""))
+```
+
+
+# Coleta dos dados e jogadores relacionados
+
+\quad \ Foram coletados dados da competição da Copa América (`id` = 223), focando especificamente na partida final entre Argentina e Colômbia, identificada pelo `match_id` 3943077. A relação de jogadores das duas partidas podemos visualizar pela Tabela \ref{tab:tab1}. 
+
+
+```{r}
+knitr::kable(Escalacao, caption = "Relação das Equipes: Argentina vs Colombia.",format = "latex",row.names = F,align = "c",linesep = "",booktabs = TRUE,label = "tab1") |> 
+  kableExtra::add_header_above(c("Argentina" = 2, " " = 1, "Colombia" = 2)) |> 
+  kableExtra::kable_styling(latex_options = c("hold_position"))
+```
+
+# Análise descritiva dos eventos do jogo
+
+\quad \ Analisaremos agora os eventos de passe incompletos e chutes que cada equipe teve na partida.
+
+
+```{r, include=FALSE}
+# Filtrando os passes
+# passes incompletos da Argentina
+passes1 <- events %>%
+  filter(type.name == "Pass" & pass.outcome.name == "Incomplete" & team.name=="Argentina")
+freq_pass_inc<-table(passes1$pass.height.name)
+# passes incompletos da Colombia
+passes2 <- events %>%
+  filter(type.name == "Pass" & pass.outcome.name == "Incomplete" & team.name=="Colombia")
+freq_pass_inc2<-table(passes2$pass.height.name)
+
+size= 0.25
+Pass_arg<-Campo(timeA = argentina_grob,timeB = colombia_grob) + 
+  geom_segment(aes(x = sapply(passes1$location, function(x) x[1]),
+                   y = sapply(passes1$location, function(x) x[2]), 
+                   xend = sapply(passes1$pass.end_location, function(x) x[1]), 
+                   yend = sapply(passes1$pass.end_location, function(x) x[2]),
+                   ,colour = factor(passes1$pass.height.name)),
+               arrow = arrow(length = unit(0.15, "cm")),size=size) + 
+  labs(colour = paste0("Incomplete Pass (",sum(as.vector(freq_pass_inc)),")")) +
+  scale_colour_discrete(labels = paste0(names(freq_pass_inc)," (",as.vector(freq_pass_inc),")")) +
+  theme(
+        legend.text = element_text(size = 6.5),
+        legend.title = element_text(size = 8),
+        legend.margin = margin(t = -15, r = 0, b = 0, l = 0)) + # Ajustar para a legenda
+  annotate("path",lty=2,
+             x = 33 + 120 / 2 + 9.15 * 3.5 * cos(seq(0, 2 * pi, length.out = 100)) * cos(pi / 4) - 9.15 * 1.9 * sin(seq(0, 2 * pi, length.out = 100)) * sin(pi / 4),
+             y = 40 / 2 + 9.15 * 3 * cos(seq(0, 2 * pi, length.out = 100)) * sin(pi / 5.5) + 9.15 * 0.8 * sin(seq(0, 2 * pi, length.out = 100)) * cos(pi / 4),color = "red",size=0.25) +
+  annotate("path",lty=2,
+             x = 23 + 120 / 2 + 9.15 * 3.7 * cos(seq(0, 2 * pi, length.out = 100)) * cos(pi / 4) - 9.15 * 1.9 * sin(seq(0, 2 * pi, length.out = 100)) * sin(pi / 4),
+             y = 112 / 2 + 9.15 * 3 * cos(seq(0, 2 * pi, length.out = 100)) * sin(pi / 7) + 9.15 * 1.1 * sin(seq(0, 2 * pi, length.out = 100)) * cos(pi / 4),color = "red",size=0.25)+
+  scale_y_reverse() 
+  
+Pass_arg
+
+Pass_Col<-Campo(timeB = argentina_grob,timeA = colombia_grob) + 
+  geom_segment(aes(x = sapply(passes2$location, function(x) x[1]), 
+                   y = sapply(passes2$location, function(x) x[2]), 
+                   xend = sapply(passes2$pass.end_location, function(x) x[1]), 
+                   yend = sapply(passes2$pass.end_location, function(x) x[2]),
+                   ,colour = factor(passes2$pass.height.name)),
+               arrow = arrow(length = unit(0.15, "cm")),size=size) + 
+  labs(colour = paste0("Incomplete Pass (",sum(as.vector(freq_pass_inc2)),")")) +
+  scale_colour_discrete(labels = paste0(names(freq_pass_inc2)," (",as.vector(freq_pass_inc2),")")) +
+  theme(
+        legend.text = element_text(size = 6.5),
+        legend.title = element_text(size = 8),
+        legend.margin = margin(t = -15, r = 0, b = 0, l = 0)) +
+  annotate("path",lty=2,
+             x = 31+120 / 2 + 9.15 * 3*cos(seq(0, 3 * pi, length.out = 100)),
+             y = 80 / 2 + 9.15 * 1.9*sin(seq(0, 3 * pi, length.out = 100)),
+             color = "red",size=0.25)+
+  scale_y_reverse()
+
+  
+Pass_Col
+```
+
+
+
+## Passes incompletos
+
+\quad \ A análise de passes incompletos no futebol é importante, pois pode indicar problemas na fluidez do jogo e na posse de bola da equipe. Esse tipo de análise ajuda a ajustar táticas em resposta às falhas nos passes e a identificar jogadores que precisam melhorar suas habilidades. Compreender a frequência e a localização dos passes errados também pode ajudar a reduzir a exposição a contra-ataques e destacar áreas que precisam de atenção nos treinamentos. Os passes podem ser: rasteiros (Ground Pass), altos (High Pass) e baixos (Low Pass). 
+
+Pela Figura \ref{fig:fig1} são apresentados os gráficos de passes incompletos da seleção da Argentina e da seleção da Colômbia, respectivamente. Conseguimos destacar para o time da Argentina duas áreas em que a equipe acabou tendo maiores erros de passes, sendo mais próximos a extremidade do campo de ataque. A argentina não teve muitos passes errados na região central do campo de ataque. O fato de a equipe ter cometido poucos erros na região central do campo de ataque pode indicar que seus jogadores estavam mais eficazes em manter a posse de bola e em executar passes em situações menos pressionadas. Além disso, essa concentração de erros nas extremidades pode indicar uma necessidade de aprimoramento nas decisões tomadas em situações críticas, especialmente em momentos de maior pressão, o que pode impactar negativamente sua capacidade de criar oportunidades de gol.
+
+
+
+```{r fig1, fig.cap="Passes incompletos da seleção Argentina e da seleção Colombiana, respectivamente.", fig.height= 4.5}
+cowplot::plot_grid(Pass_arg,Pass_Col,nrow = 2)
+```
+Já para a Colômbia, observa-se que a maior quantidade de erros de passes ocorreu na região central do campo de ataque. Esse padrão pode indicar que a equipe teve dificuldades em penetrar no setor mais crucial para a criação de jogadas ofensivas. Erros nessa área central sugerem problemas na articulação de jogadas sob pressão, possivelmente refletindo uma marcação mais eficiente da equipe adversária ou uma falta de precisão e entendimento entre os jogadores colombianos nesse setor. Também observamos que a maioria dos passes errados ocorreu em passes aéreos, indicando que a Colômbia insistiu bastante em lançamentos longos para o ataque, buscando romper a linha defensiva da Argentina.
+
+```{r, include=FALSE}
+# filtrando chutes:
+
+# Filtrando os passes
+# passes incompletos da Argentina
+shot1 <- events %>%
+  filter(type.name == "Shot" & team.name=="Argentina")
+freq_shot1<-table(shot1$shot.outcome.name)
+# passes incompletos da Colombia
+shot2 <- events %>%
+  filter(type.name == "Shot" & team.name=="Colombia")
+freq_shot2<-table(shot2$shot.outcome.name)
+
+size= 0.25
+shot_arg<-Campo(timeA = argentina_grob,timeB = colombia_grob) + 
+  geom_segment(aes(x = sapply(shot1$location, function(x) x[1]), 
+                   y = sapply(shot1$location, function(x) x[2]), 
+                   xend = sapply(shot1$shot.end_location, function(x) x[1]), 
+                   yend = sapply(shot1$shot.end_location, function(x) x[2]), 
+                   colour = shot1$shot.outcome.name),
+               arrow = arrow(length = unit(0.15, "cm")),size=size) + 
+  labs(colour = paste0("Shot (",sum(as.vector(freq_shot1)),")")) +
+  scale_colour_manual(values = c("Blocked" = "cyan2", "Off T" = "blue3","Goal"="red2","Saved"="green3","Wayward"="orange"),
+    labels = paste0(names(freq_shot1)," (",as.vector(freq_shot1),")")) +
+  theme(
+        legend.text = element_text(size = 6.5),
+        legend.title = element_text(size = 8),
+        legend.margin = margin(t = -15, r = 0, b = 0, l = 0))+
+  scale_y_reverse()
+
+  
+shot_arg
+
+shot_Col<-Campo(timeB = argentina_grob,timeA = colombia_grob) + 
+  geom_segment(aes(x = sapply(shot2$location, function(x) x[1]), 
+                   y = sapply(shot2$location, function(x) x[2]), 
+                   xend = sapply(shot2$shot.end_location, function(x) x[1]), 
+                   yend = sapply(shot2$shot.end_location, function(x) x[2]), 
+                   colour = shot2$shot.outcome.name),
+               arrow = arrow(length = unit(0.15, "cm")),size=size) + 
+  labs(colour = paste0("Shot (",sum(as.vector(freq_shot2)),")")) +
+  scale_colour_manual(values = c("Blocked" = "cyan2", "Off T" = "blue3","Post"="pink2","Saved"="green3","Wayward"="orange"),
+                      labels = paste0(names(freq_shot2)," (",as.vector(freq_shot2),")")) +
+  theme(
+        legend.text = element_text(size = 6.5),
+        legend.title = element_text(size = 8),
+        legend.margin = margin(t = -15, r = 0, b = 0, l = 0))+
+  scale_y_reverse()
+shot_Col
+```
+
+## Chutes
+
+\quad \ A análise dos chutes no futebol é crucial para avaliar a eficiência ofensiva de uma equipe. Ela permite entender não apenas a quantidade de finalizações, mas também a qualidade das oportunidades criadas. Isso envolve examinar aspectos como a distância do chute, a posição do jogador, o ângulo em relação ao gol e se a finalização foi realizada sob pressão adversária. Além disso, a análise dos chutes revela tendências sobre como a equipe se posiciona no ataque, a eficácia dos arremates e a capacidade de transformar chances em gols. Os chutes podem ser: bloqueados (blocked), para fora (Off T), defendidos (Saved), com direção muito longe do gol (Wayward), na trave (Post) e quando ocorre o gol (Goal).
+
+A figura \ref{fig:fig2} apresenta todas as finalizações da seleção da Argentina e da Colômbia, respectivamente. Observa-se que a Argentina finalizou menos que a Colômbia, mas seus chutes foram mais precisos, com 4 defesas entre os 11 chutes realizados, além de 2 bloqueados e 1 resultando em gol. A maioria das finalizações argentinas ocorreu pela esquerda do campo, com todas, exceto um chutão nos acréscimos finais, acontecendo dentro da grande área. O gol da Argentina veio de um chute cruzado pela direita, após uma triangulação no meio de campo, o que confirma a análise anterior dos passes incompletos, mostrando que a equipe errou pouco nessa região. 
+Esse desempenho pode ser atribuído à presença do camisa 10, Messi, que atuou no centro do campo, distribuindo passes com precisão, conduzindo as jogadas e dando a assistência para o gol. Em contrapartida, a Colômbia realizou muitas finalizações de fora da área, o que indica que a defesa argentina estava bem postada, limitando espaços para chutes mais próximos. Como resultado, a Colômbia teve 7 chutes bloqueados, principalmente pela direita da defesa argentina, além de 5 finalizações para fora. 
+
+```{r fig2, fig.cap="Chutes da seleção Argentina e da seleção Colombiana, respectivamente.", fig.height= 4.5}
+cowplot::plot_grid(shot_arg,shot_Col,nrow = 2)
+
+```
+
+# Considerações finais
+
+\quad \ A Argentina focou na qualidade de seus passes no meio-campo, trabalhando bem a bola e buscando finalizações mais próximas do gol, o que resultou em poucas tentativas, porém com maior precisão e chance de conversão. Por outro lado, a Colômbia optou por lançamentos longos, especialmente aéreos, e chutes de longa distância, buscando superar a defesa bem postada da Argentina.
